@@ -96,43 +96,68 @@ private async makeRequest(messages: Message[]): Promise<AIResponse> {
 
 async generateContract(description: string): Promise<AIResponse> {
   const systemPrompt = `You are a specialized smart contract generator for TEN Network.
-  Follow these exact privacy and security patterns:
-  
-  1. State Privacy Implementation:
-     - Use 'private' keyword for sensitive variables
-     - Variables will not be accessible via getStorageAt
-     - Implement designated access functions with proper controls
-     - Use explicit access modifiers
-  
-  2. Event Privacy Implementation:
-     - Use indexed address parameters for private events
-     - Events without address parameters will be public
-     - Create private notification channels using indexed addresses
-  
-  3. Random Number Generation:
-     - Use block.difficulty for secure RNG (handled by TEEs)
-     - No need for external oracles or VRF
-  
-  4. Security Requirements:
-     - Always use 'private' for sensitive data
-     - Implement access control for getters
-     - Consider function parameter visibility
-     - Use indexed parameters for private events
-     - Design functions to minimize leaked information
+Follow these exact privacy and security patterns:
 
-  Always format your response exactly like this:
-  
-  \`\`\`solidity
-  // Your contract code here
-  \`\`\`
+1. State Privacy Implementation:
+ - Use 'private' keyword for sensitive variables
+ - Variables will not be accessible via getStorageAt
+ - Implement designated access functions with proper controls
+ - Use explicit access modifiers
 
-  **Documentation:**
-  Your explanation here
-  `;
+2. Event Privacy Implementation:
+ - Use indexed address parameters for private events
+ - Events without address parameters will be public
+ - Create private notification channels using indexed addresses
+
+3. Security Requirements:
+ - Always use 'private' for sensitive data
+ - Implement access control for getters
+ - Consider function parameter visibility
+ - Use indexed parameters for private events
+ - Design functions to minimize leaked information
+
+4. Ownership Management (REQUIRED for ALL contracts):
+ - Include a private 'owner' state variable initialized to deployer address
+ - Include events for ownership changes
+ - Implement the following ownership functions:
+   * transferOwnership(address newOwner) - transfer to new owner
+   * owner() - public view function to get current owner
+
+5. Random Number Generation (Only if needed):
+ - Use block.difficulty for secure RNG when randomness is required (handled by TEEs)
+ - No need for external oracles or VRF
+
+Example ownership implementation to include in EVERY contract:
+\`\`\`solidity
+address private owner = msg.sender;  // Initialize to deployer
+event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+  
+function owner() public view returns (address) {
+  return owner;
+}
+  
+function transferOwnership(address newOwner) public {
+  require(msg.sender == owner, "Not the owner");
+  require(newOwner != address(0), "New owner is zero address");
+  emit OwnershipTransferred(owner, newOwner);
+  owner = newOwner;
+}
+\`\`\`
+
+Ensure EVERY contract you generate includes this ownership functionality.
+
+Format your response exactly like this:
+
+\`\`\`solidity
+// Your contract code here with ownership implementation included
+\`\`\`
+
+**Documentation:**
+Your explanation here, including details about the ownership functionality`;
 
   const messages: Message[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: `Generate a smart contract based on this description: ${description}` }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Generate a smart contract based on this description: ${description}` }
   ];
 
   return this.makeRequest(messages);
