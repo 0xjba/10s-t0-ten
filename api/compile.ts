@@ -1,6 +1,6 @@
 // api/compile.ts
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as solc from 'solc';
+import solc from 'solc';
 
 interface SolcError {
     severity: 'error' | 'warning';
