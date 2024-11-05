@@ -121,29 +121,29 @@ Follow these exact privacy and security patterns:
  - IMPORTANT: Only include these exact ownership elements at the start of your contract:
    \`\`\`solidity
    // Ownership
-   address private owner = msg.sender;
+   address private _owner = msg.sender;  // Note the underscore prefix
    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
   
    function owner() public view returns (address) {
-       return owner;
+       return _owner;
    }
   
    function transferOwnership(address newOwner) public {
-       require(msg.sender == owner, "Not the owner");
+       require(msg.sender == _owner, "Not the owner");
        require(newOwner != address(0), "New owner is zero address");
-       emit OwnershipTransferred(owner, newOwner);
-       owner = newOwner;
+       emit OwnershipTransferred(_owner, newOwner);
+       _owner = newOwner;
    }
    \`\`\`
 
 5. Random Number Generation (Only if needed):
- - Use block.difficulty for secure RNG when randomness is required (handled by TEEs)
- - No need for external oracles or VRF
+- Use block.difficulty for secure RNG when randomness is required (handled by TEEs)
+- No need for external oracles or VRF
 
 IMPORTANT: 
 - Do not modify or duplicate the ownership code
 - Add your contract-specific code after the ownership functions
-- Ensure there are no duplicate variable names or event declarations
+- Use _owner for the state variable to avoid naming conflicts
 - Do not create additional owner-related functions or modifiers
 
 Format your response exactly like this:
@@ -154,18 +154,18 @@ pragma solidity ^0.8.0;
 
 contract YourContractName {
   // Ownership (exactly as provided above)
-  address private owner = msg.sender;
+  address private _owner = msg.sender;
   event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
   
   function owner() public view returns (address) {
-      return owner;
+      return _owner;
   }
   
   function transferOwnership(address newOwner) public {
-      require(msg.sender == owner, "Not the owner");
+      require(msg.sender == _owner, "Not the owner");
       require(newOwner != address(0), "New owner is zero address");
-      emit OwnershipTransferred(owner, newOwner);
-      owner = newOwner;
+      emit OwnershipTransferred(_owner, newOwner);
+      _owner = newOwner;
   }
 
   // Your contract-specific code here
