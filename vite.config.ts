@@ -19,15 +19,5 @@ export default defineConfig({
   },
   define: {
     'process.env': {}
-  },
-  worker: {
-    format: 'es',
-    plugins: () => [],
-    rollupOptions: {
-      output: {
-        format: 'es',
-        entryFileNames: '[name].js',
-      }
-    }
   }
 });
