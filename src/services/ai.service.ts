@@ -1,4 +1,5 @@
 // src/services/ai.service.ts
+
 import { getEnvConfig } from '../config/env';
 
 interface Message {
@@ -117,43 +118,63 @@ Follow these exact privacy and security patterns:
  - Design functions to minimize leaked information
 
 4. Ownership Management (REQUIRED for ALL contracts):
- - Include a private 'owner' state variable initialized to deployer address
- - Include events for ownership changes
- - Implement the following ownership functions:
-   * transferOwnership(address newOwner) - transfer to new owner
-   * owner() - public view function to get current owner
+ - IMPORTANT: Only include these exact ownership elements at the start of your contract:
+   \`\`\`solidity
+   // Ownership
+   address private owner = msg.sender;
+   event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+  
+   function owner() public view returns (address) {
+       return owner;
+   }
+  
+   function transferOwnership(address newOwner) public {
+       require(msg.sender == owner, "Not the owner");
+       require(newOwner != address(0), "New owner is zero address");
+       emit OwnershipTransferred(owner, newOwner);
+       owner = newOwner;
+   }
+   \`\`\`
 
 5. Random Number Generation (Only if needed):
  - Use block.difficulty for secure RNG when randomness is required (handled by TEEs)
  - No need for external oracles or VRF
 
-Example ownership implementation to include in EVERY contract:
-\`\`\`solidity
-address private owner = msg.sender;  // Initialize to deployer
-event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-  
-function owner() public view returns (address) {
-  return owner;
-}
-  
-function transferOwnership(address newOwner) public {
-  require(msg.sender == owner, "Not the owner");
-  require(newOwner != address(0), "New owner is zero address");
-  emit OwnershipTransferred(owner, newOwner);
-  owner = newOwner;
-}
-\`\`\`
-
-Ensure EVERY contract you generate includes this ownership functionality.
+IMPORTANT: 
+- Do not modify or duplicate the ownership code
+- Add your contract-specific code after the ownership functions
+- Ensure there are no duplicate variable names or event declarations
+- Do not create additional owner-related functions or modifiers
 
 Format your response exactly like this:
 
 \`\`\`solidity
-// Your contract code here with ownership implementation included
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract YourContractName {
+  // Ownership (exactly as provided above)
+  address private owner = msg.sender;
+  event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+  
+  function owner() public view returns (address) {
+      return owner;
+  }
+  
+  function transferOwnership(address newOwner) public {
+      require(msg.sender == owner, "Not the owner");
+      require(newOwner != address(0), "New owner is zero address");
+      emit OwnershipTransferred(owner, newOwner);
+      owner = newOwner;
+  }
+
+  // Your contract-specific code here
+  // ...
+}
 \`\`\`
 
 **Documentation:**
-Your explanation here, including details about the ownership functionality`;
+Your explanation here, including details about the ownership functionality and your contract-specific features.`;
 
   const messages: Message[] = [
       { role: 'system', content: systemPrompt },
