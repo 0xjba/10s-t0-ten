@@ -22,6 +22,7 @@ export class AIService {
   }
 
 // src/services/ai.service.ts
+// src/services/ai.service.ts
 private async makeRequest(messages: Message[]): Promise<AIResponse> {
   try {
     const response = await fetch(this.baseUrl, {
@@ -53,27 +54,38 @@ private async makeRequest(messages: Message[]): Promise<AIResponse> {
 
     const data = await response.json();
     console.log('API Response:', data);
-
-    // Extract content from the response
     const content = data.choices[0].message.content;
-    
-    // Look for the contract code between ```solidity and ``` markers
-    const codeMatch = content.match(/```solidity\n([\s\S]*?)```/);
-    
-    // Look for the documentation after the code block
-    const docMatch = content.match(/\*\*Documentation:\*\*([\s\S]*$)/);
 
-    if (!codeMatch || !docMatch) {
-      console.error('Response content:', content);
-      throw new Error('Invalid response format from AI');
+    // Try to extract code and explanation using both formats
+    let code, explanation;
+
+    // Try XML format first
+    const xmlCodeMatch = content.match(/<CONTRACT>([\s\S]*?)<\/CONTRACT>/);
+    const xmlExplanationMatch = content.match(/<EXPLANATION>([\s\S]*?)<\/EXPLANATION>/);
+
+    if (xmlCodeMatch && xmlExplanationMatch) {
+      code = xmlCodeMatch[1].trim();
+      explanation = xmlExplanationMatch[1].trim();
+    } else {
+      // Try markdown format
+      const markdownCodeMatch = content.match(/```solidity\n([\s\S]*?)```/);
+      const documentationMatch = content.match(/\*\*Documentation:\*\*([\s\S]*$)/);
+
+      if (!markdownCodeMatch || !documentationMatch) {
+        console.error('Response content:', content);
+        throw new Error('Invalid response format from AI');
+      }
+
+      code = markdownCodeMatch[1].trim();
+      explanation = documentationMatch[1].trim();
     }
 
     return {
-      code: codeMatch[1].trim(),
-      explanation: docMatch[1].trim(),
+      code,
+      explanation,
       tokensUsed: data.usage.total_tokens
     };
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('AI Service Error:', error);
     if (error instanceof Error) {
       throw error;
@@ -87,7 +99,7 @@ async generateContract(description: string): Promise<AIResponse> {
   Follow these exact privacy and security patterns:
   
   1. State Privacy Implementation:
-     - Use 'private' keyword for sensitive variables (automatically private on TEN)
+     - Use 'private' keyword for sensitive variables
      - Variables will not be accessible via getStorageAt
      - Implement designated access functions with proper controls
      - Use explicit access modifiers
@@ -108,9 +120,14 @@ async generateContract(description: string): Promise<AIResponse> {
      - Use indexed parameters for private events
      - Design functions to minimize leaked information
 
-  Format your response exactly like this:
-  1. First the contract code wrapped in \`\`\`solidity and \`\`\`
-  2. Then the documentation section starting with **Documentation:**
+  Always format your response exactly like this:
+  
+  \`\`\`solidity
+  // Your contract code here
+  \`\`\`
+
+  **Documentation:**
+  Your explanation here
   `;
 
   const messages: Message[] = [
