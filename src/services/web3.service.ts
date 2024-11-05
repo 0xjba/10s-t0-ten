@@ -27,29 +27,37 @@ export class Web3Service {
 
   private async compileContract(sourceCode: string): Promise<CompilationResult> {
     try {
-      console.log('Sending compilation request to:', this.compilerUrl);
-      
-      const response = await fetch(this.compilerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ sourceCode })
-      });
+        console.log('Sending compilation request to:', this.compilerUrl);
+        console.log('Source code:', sourceCode);
+        
+        const response = await fetch(this.compilerUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ sourceCode })
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Compilation failed');
-      }
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Compilation failed with status:', response.status);
+            console.error('Error response:', errorText);
+            try {
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.error || 'Compilation failed');
+            } catch (e) {
+                throw new Error(`Compilation failed: ${errorText}`);
+            }
+        }
 
-      const result = await response.json();
-      console.log('Compilation successful');
-      return result;
+        const result = await response.json();
+        console.log('Compilation successful, result:', result);
+        return result;
     } catch (error) {
-      console.error('Compilation failed:', error);
-      throw error;
+        console.error('Compilation error:', error);
+        throw error;
     }
-  }
+}
 
   public validateAddress(address: string): boolean {
     try {
