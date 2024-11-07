@@ -20,7 +20,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleLogin = () => {
     const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-    const redirectUri = window.location.origin;
+    const redirectUri = import.meta.env.DEV 
+      ? 'http://localhost:3000'
+      : import.meta.env.VITE_APP_URL;
   
     window.location.href = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify`;
   };

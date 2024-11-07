@@ -56,16 +56,17 @@ async function saveUser(userData: UserData): Promise<void> {
   }
 }
 
-// Update only the getDiscordUser function, rest remains same
+// api/auth/discord.ts
+// Update the getDiscordUser function
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
     const clientId = process.env.VITE_DISCORD_CLIENT_ID;
     const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
     
-    // Use the deployed URL for production
+    // Use the same URL as in the auth request
     const redirectUri = process.env.NODE_ENV === 'development'
       ? 'http://localhost:3000'
-      : `https://${process.env.VERCEL_URL}`;
+      : process.env.VITE_APP_URL;
   
     console.log('Using redirect URI:', redirectUri); // For debugging
   
@@ -81,13 +82,13 @@ async function getDiscordUser(code: string): Promise<DiscordUser> {
           client_secret: clientSecret!,
           grant_type: 'authorization_code',
           code,
-          redirect_uri: redirectUri,
+          redirect_uri: redirectUri!
         }).toString()
       });
   
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json();
-        console.error('Token response error:', errorData); // For debugging
+        console.error('Token response error:', errorData);
         throw new Error(`Failed to get token: ${JSON.stringify(errorData)}`);
       }
   
