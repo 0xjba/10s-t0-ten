@@ -8,11 +8,11 @@ export class EdgeConfigService {
     private client;
   
     constructor() {
-      if (!process.env.EDGE_CONFIG_URL) {
+      if (!process.env.VITE_EDGE_CONFIG_URL) {
         console.error('Missing Edge Config URL');
         this.client = null;
       } else {
-        this.client = createClient(process.env.EDGE_CONFIG_URL);
+        this.client = createClient(process.env.VITE_EDGE_CONFIG_URL);
       }
     }
   
