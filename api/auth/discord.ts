@@ -20,9 +20,16 @@ interface UserData {
 // Edge Config setup for API route
 const edgeConfig = createClient(process.env.VITE_EDGE_CONFIG_URL!);
 
+// Helper function to generate a valid Edge Config key
+function generateEdgeConfigKey(userId: string): string {
+  // Prefix and replace any invalid characters in the Discord user ID with underscores
+  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `discord_user_${sanitizedUserId}`;
+}
+
 async function getUser(userId: string): Promise<UserData | null> {
   try {
-    const userData = await edgeConfig.get<UserData>(`user:${userId}`);
+    const userData = await edgeConfig.get<UserData>(generateEdgeConfigKey(userId));
     return userData || null;
   } catch (error) {
     console.error('Error getting user:', error);
@@ -30,100 +37,92 @@ async function getUser(userId: string): Promise<UserData | null> {
   }
 }
 
-// Update the saveUser function
-
 async function saveUser(userData: UserData): Promise<void> {
-    try {
-      console.log('Attempting to save user with Edge Config ID:', process.env.VITE_EDGE_CONFIG_ID);
-      
-      const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          items: [{
-            operation: 'upsert',
-            key: `user:${userData.id}`,
-            value: userData
-          }]
-        })
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Edge Config update failed with status:', response.status);
-        console.error('Edge Config error response:', errorData);
-        throw new Error(`Failed to update Edge Config: ${JSON.stringify(errorData)}`);
-      }
-  
-      const result = await response.json();
-      console.log('Edge Config update successful:', result);
-    } catch (error) {
-      // Log the full error
-      console.error('Error saving user - Full error:', error);
-      console.error('Edge Config Token available:', !!process.env.VITE_EDGE_CONFIG_TOKEN);
-      console.error('Edge Config ID available:', !!process.env.VITE_EDGE_CONFIG_ID);
-      throw error;
-    }
-  }
+  try {
+    const key = generateEdgeConfigKey(userData.id);
+    console.log('Attempting to save user with Edge Config key:', key);
 
-// api/auth/discord.ts
-// Update the getDiscordUser function
+    const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        items: [{
+          operation: 'upsert',
+          key: key,
+          value: userData
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Edge Config update failed with status:', response.status);
+      console.error('Edge Config error response:', errorData);
+      throw new Error(`Failed to update Edge Config: ${JSON.stringify(errorData)}`);
+    }
+
+    const result = await response.json();
+    console.log('Edge Config update successful:', result);
+  } catch (error) {
+    console.error('Error saving user - Full error:', error);
+    console.error('Edge Config Token available:', !!process.env.VITE_EDGE_CONFIG_TOKEN);
+    console.error('Edge Config ID available:', !!process.env.VITE_EDGE_CONFIG_ID);
+    throw error;
+  }
+}
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
-    const clientId = process.env.VITE_DISCORD_CLIENT_ID;
-    const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
-    
-    // Use the same URL as in the auth request
-    const redirectUri = process.env.NODE_ENV === 'development'
-      ? 'http://localhost:3000'
-      : process.env.VITE_APP_URL;
-  
-    console.log('Using redirect URI:', redirectUri); // For debugging
-  
-    try {
-      // Exchange code for token
-      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: clientId!,
-          client_secret: clientSecret!,
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri!
-        }).toString()
-      });
-  
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        console.error('Token response error:', errorData);
-        throw new Error(`Failed to get token: ${JSON.stringify(errorData)}`);
-      }
-  
-      const tokens = await tokenResponse.json();
-  
-      // Get user info using the token
-      const userResponse = await fetch('https://discord.com/api/users/@me', {
-        headers: {
-          Authorization: `Bearer ${tokens.access_token}`,
-        },
-      });
-  
-      if (!userResponse.ok) {
-        throw new Error('Failed to get user info');
-      }
-  
-      return userResponse.json();
-    } catch (error) {
-      console.error('Discord auth error details:', error);
-      throw error;
+  const clientId = process.env.VITE_DISCORD_CLIENT_ID;
+  const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
+
+  const redirectUri = process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3000'
+    : process.env.VITE_APP_URL;
+
+  console.log('Using redirect URI:', redirectUri);
+
+  try {
+    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri!
+      }).toString()
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json();
+      console.error('Token response error:', errorData);
+      throw new Error(`Failed to get token: ${JSON.stringify(errorData)}`);
     }
+
+    const tokens = await tokenResponse.json();
+
+    const userResponse = await fetch('https://discord.com/api/users/@me', {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+      },
+    });
+
+    if (!userResponse.ok) {
+      throw new Error('Failed to get user info');
+    }
+
+    return userResponse.json();
+  } catch (error) {
+    console.error('Discord auth error details:', error);
+    throw error;
   }
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -136,14 +135,11 @@ export default async function handler(
   try {
     const { code } = req.body;
 
-    // Get user info from Discord
     const discordUser = await getDiscordUser(code);
 
-    // Check if user exists in Edge Config
     let userData = await getUser(discordUser.id);
 
     if (!userData) {
-      // Create new user
       userData = {
         id: discordUser.id,
         username: discordUser.username,
@@ -152,10 +148,8 @@ export default async function handler(
         lastTokenReset: Date.now()
       };
 
-      // Save new user
       await saveUser(userData);
     } else {
-      // Check if 24 hours have passed since last reset
       const now = Date.now();
       const hoursSinceReset = (now - userData.lastTokenReset) / (1000 * 60 * 60);
 
