@@ -30,31 +30,44 @@ async function getUser(userId: string): Promise<UserData | null> {
   }
 }
 
-async function saveUser(userData: UserData): Promise<void> {
-  try {
-    const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        items: [{
-          operation: 'upsert',
-          key: `user:${userData.id}`,
-          value: userData
-        }]
-      })
-    });
+// Update the saveUser function
 
-    if (!response.ok) {
-      throw new Error('Failed to update Edge Config');
+async function saveUser(userData: UserData): Promise<void> {
+    try {
+      console.log('Attempting to save user with Edge Config ID:', process.env.VITE_EDGE_CONFIG_ID);
+      
+      const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          items: [{
+            operation: 'upsert',
+            key: `user:${userData.id}`,
+            value: userData
+          }]
+        })
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Edge Config update failed with status:', response.status);
+        console.error('Edge Config error response:', errorData);
+        throw new Error(`Failed to update Edge Config: ${JSON.stringify(errorData)}`);
+      }
+  
+      const result = await response.json();
+      console.log('Edge Config update successful:', result);
+    } catch (error) {
+      // Log the full error
+      console.error('Error saving user - Full error:', error);
+      console.error('Edge Config Token available:', !!process.env.VITE_EDGE_CONFIG_TOKEN);
+      console.error('Edge Config ID available:', !!process.env.VITE_EDGE_CONFIG_ID);
+      throw error;
     }
-  } catch (error) {
-    console.error('Error saving user:', error);
-    throw error;
   }
-}
 
 // api/auth/discord.ts
 // Update the getDiscordUser function
