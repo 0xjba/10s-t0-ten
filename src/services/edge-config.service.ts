@@ -1,5 +1,6 @@
+// src/services/edge-config.service.ts
 import { createClient } from '@vercel/edge-config';
-import type { UserData, TokenStatus } from '../types/auth.types';
+import type { UserData, TokenStatus } from '../../src/types/auth.types';
 
 const MAX_TOKENS = 17500;
 
