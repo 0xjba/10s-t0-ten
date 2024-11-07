@@ -192,7 +192,7 @@ IMPORTANT CONTEXT:
 - Take advantage of TEN Network's native privacy features
 - All references in explanations should mention TEN Network specifically
 - Use block.difficulty for secure RNG when needed (handled by TEEs on TEN Network)
-- Do not use placeholder logic or TODOs
+- Do not use placeholder functions, logic or TODOs
 - Implement all functions completely
 - Do not leave any functionality incomplete
 - Ensure all functions have proper implementation
@@ -235,8 +235,6 @@ contract YourContractName {
     return this.makeRequest(messages);
   }
 
-// In optimizeContract function, update ONLY the systemPrompt:
-
 async optimizeContract(currentCode: string, optimization: string): Promise<AIResponse> {
   const systemPrompt = `You are a smart contract optimization expert for TEN Network. Your task is to return an EXACT, COMPLETE smart contract with the requested optimizations applied.
 
@@ -244,10 +242,14 @@ CRITICAL:
 - Take the existing contract code
 - Apply the requested optimizations
 - Return the ENTIRE contract with ALL functions and logic
-- Never use comments like "Rest of..." or "..."
-- Never use TODO or placeholder comments
+- Do not use placeholder functions, logic or TODOs
+- Implement all functions completely
+- Do not leave any functionality incomplete
+- Ensure all functions have proper implementation
+- No comments indicating future implementation needed
 - Include every single function, both existing and new
 - Do not modify the ownership code at the start
+
 
 Preserve this exact ownership code at the start:
 \`\`\`solidity
