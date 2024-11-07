@@ -1,4 +1,3 @@
-// src/services/edge-config.service.ts
 import { createClient } from '@vercel/edge-config';
 import type { UserData, TokenStatus } from '../types/auth.types';
 

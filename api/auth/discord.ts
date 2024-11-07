@@ -6,7 +6,7 @@ async function getDiscordUser(code: string): Promise<DiscordUser> {
   const clientSecret = import.meta.env.VITE_DISCORD_CLIENT_SECRET;
   const redirectUri = process.env.NODE_ENV === 'development' 
   ? 'http://localhost:3000'
-  : window.location.origin;
+  : import.meta.env.VITE_REDIRECT_URI;
 
   // Exchange code for token
   const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
