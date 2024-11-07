@@ -1,12 +1,67 @@
-import { edgeConfigService } from '../../lib/edge-config.service';
-import type { DiscordUser, UserData } from '../../lib/types';
+// api/auth/discord.ts
+import { createClient } from '@vercel/edge-config';
+
+// Types
+interface DiscordUser {
+    id: string;
+    username: string;
+    avatar: string;
+  }
+  
+  interface UserData {
+    id: string;
+    username: string;
+    avatar: string;
+    tokenUsage: number;
+    lastTokenReset: number;
+  }
+
+// Edge Config setup for API route
+const edgeConfig = createClient(process.env.VITE_EDGE_CONFIG_URL!);
+
+async function getUser(userId: string): Promise<UserData | null> {
+    try {
+      const userData = await edgeConfig.get<UserData>(`user:${userId}`);
+      return userData || null;
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return null;
+    }
+  }
+  
+  async function saveUser(userData: UserData): Promise<void> {
+    try {
+      // Use Vercel API to update Edge Config
+      const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          items: [{
+            operation: 'upsert',
+            key: `user:${userData.id}`,
+            value: userData
+          }]
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to update Edge Config');
+      }
+    } catch (error) {
+      console.error('Error saving user:', error);
+      throw error;
+    }
+  }
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
-  const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-  const clientSecret = import.meta.env.VITE_DISCORD_CLIENT_SECRET;
+  const clientId = process.env.VITE_DISCORD_CLIENT_ID;
+  const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
   const redirectUri = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:3000'
-  : import.meta.env.VITE_REDIRECT_URI;
+    ? 'http://localhost:3000'
+    : process.env.VERCEL_URL;
 
   // Exchange code for token
   const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -15,11 +70,11 @@ async function getDiscordUser(code: string): Promise<DiscordUser> {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: clientId!,
+      client_secret: clientSecret!,
       grant_type: 'authorization_code',
       code,
-      redirect_uri: redirectUri,
+      redirect_uri: redirectUri!,
     }),
   });
 
@@ -43,7 +98,7 @@ async function getDiscordUser(code: string): Promise<DiscordUser> {
   return userResponse.json();
 }
 
-export async function POST(req: Request) {
+export default async function handler(req: Request) {
   try {
     const { code } = await req.json();
 
@@ -51,7 +106,7 @@ export async function POST(req: Request) {
     const discordUser = await getDiscordUser(code);
 
     // Check if user exists in Edge Config
-    let userData = await edgeConfigService.getUser(discordUser.id);
+    let userData = await getUser(discordUser.id);
 
     if (!userData) {
       // Create new user
@@ -64,7 +119,7 @@ export async function POST(req: Request) {
       };
 
       // Save new user
-      await edgeConfigService.saveUser(userData);
+      await saveUser(userData);
     } else {
       // Check if 24 hours have passed since last reset
       const now = Date.now();
@@ -73,7 +128,7 @@ export async function POST(req: Request) {
       if (hoursSinceReset >= 24) {
         userData.tokenUsage = 0;
         userData.lastTokenReset = now;
-        await edgeConfigService.saveUser(userData);
+        await saveUser(userData);
       }
     }
 
