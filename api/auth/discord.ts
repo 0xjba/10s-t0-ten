@@ -56,47 +56,60 @@ async function saveUser(userData: UserData): Promise<void> {
   }
 }
 
+// Update only the getDiscordUser function, rest remains same
+
 async function getDiscordUser(code: string): Promise<DiscordUser> {
-  const clientId = process.env.VITE_DISCORD_CLIENT_ID;
-  const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
-  const redirectUri = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:3000'
-    : process.env.VERCEL_URL;
-
-  // Exchange code for token
-  const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: clientId!,
-      client_secret: clientSecret!,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redirectUri!,
-    }),
-  });
-
-  if (!tokenResponse.ok) {
-    throw new Error('Failed to get token');
+    const clientId = process.env.VITE_DISCORD_CLIENT_ID;
+    const clientSecret = process.env.VITE_DISCORD_CLIENT_SECRET;
+    
+    // Use the deployed URL for production
+    const redirectUri = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3000'
+      : `https://${process.env.VERCEL_URL}`;
+  
+    console.log('Using redirect URI:', redirectUri); // For debugging
+  
+    try {
+      // Exchange code for token
+      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: clientId!,
+          client_secret: clientSecret!,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+        }).toString()
+      });
+  
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        console.error('Token response error:', errorData); // For debugging
+        throw new Error(`Failed to get token: ${JSON.stringify(errorData)}`);
+      }
+  
+      const tokens = await tokenResponse.json();
+  
+      // Get user info using the token
+      const userResponse = await fetch('https://discord.com/api/users/@me', {
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
+        },
+      });
+  
+      if (!userResponse.ok) {
+        throw new Error('Failed to get user info');
+      }
+  
+      return userResponse.json();
+    } catch (error) {
+      console.error('Discord auth error details:', error);
+      throw error;
+    }
   }
-
-  const tokens = await tokenResponse.json();
-
-  // Get user info using the token
-  const userResponse = await fetch('https://discord.com/api/users/@me', {
-    headers: {
-      Authorization: `Bearer ${tokens.access_token}`,
-    },
-  });
-
-  if (!userResponse.ok) {
-    throw new Error('Failed to get user info');
-  }
-
-  return userResponse.json();
-}
 
 export default async function handler(
   req: VercelRequest,
