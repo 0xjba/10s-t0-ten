@@ -1,17 +1,6 @@
 // src/context/app.context.tsx
 import React, { createContext, useContext, useReducer } from 'react';
-import { AppState, FlowState, Message } from '../types';
-
-type Action =
-  | { type: 'ADD_MESSAGE'; payload: Message }
-  | { type: 'SET_MESSAGES'; payload: Message[] }
-  | { type: 'SET_STATE'; payload: FlowState }
-  | { type: 'SET_CONTRACT'; payload: string }
-  | { type: 'SET_USER_ADDRESS'; payload: string }
-  | { type: 'SET_DEPLOYMENT_STATUS'; payload: AppState['deployment'] }
-  | { type: 'ADD_OPTIMIZATION'; payload: { description: string; result: string } }
-  | { type: 'UPDATE_TOKEN_USAGE'; payload: { input: number; output: number } }
-  | { type: 'RESET_STATE' };
+import type { AppState, FlowState, Message, Action, DeploymentState } from '../types';
 
 const initialState: AppState = {
   messages: [
@@ -38,10 +27,8 @@ I'll generate a secure smart contract based on your requirements.`
     history: [],
   },
   tokenUsage: {
-    input: 0,
-    output: 0,
-    total: 0,
-  },
+    total: 0
+  }
 };
 
 function appReducer(state: AppState, action: Action): AppState {
@@ -51,31 +38,37 @@ function appReducer(state: AppState, action: Action): AppState {
         ...state,
         messages: [...state.messages, action.payload],
       };
+
     case 'SET_MESSAGES':
       return {
         ...state,
         messages: action.payload,
       };
+
     case 'SET_STATE':
       return {
         ...state,
         currentState: action.payload,
       };
+
     case 'SET_CONTRACT':
       return {
         ...state,
         contract: action.payload,
       };
+
     case 'SET_USER_ADDRESS':
       return {
         ...state,
         userAddress: action.payload,
       };
+
     case 'SET_DEPLOYMENT_STATUS':
       return {
         ...state,
         deployment: action.payload,
       };
+
     case 'ADD_OPTIMIZATION':
       return {
         ...state,
@@ -85,17 +78,27 @@ function appReducer(state: AppState, action: Action): AppState {
           history: [...state.optimizations.history, action.payload],
         },
       };
+
     case 'UPDATE_TOKEN_USAGE':
       return {
         ...state,
         tokenUsage: {
-          input: state.tokenUsage.input + action.payload.input,
-          output: state.tokenUsage.output + action.payload.output,
-          total: state.tokenUsage.total + action.payload.input + action.payload.output,
+          total: state.tokenUsage.total + action.payload.tokensUsed
         },
       };
+
     case 'RESET_STATE':
-      return initialState;
+      return {
+        ...initialState,
+        messages: [
+          {
+            id: Date.now().toString(),
+            type: 'system',
+            content: initialState.messages[0].content
+          }
+        ]
+      };
+
     default:
       return state;
   }
@@ -111,7 +114,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Optional: Log state changes during development
   React.useEffect(() => {
-    console.log('App State:', state);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('App State:', state);
+    }
   }, [state]);
 
   return (
@@ -127,4 +132,27 @@ export function useAppState() {
     throw new Error('useAppState must be used within an AppProvider');
   }
   return context;
+}
+
+// Optional: Export a function to reset the state
+export function useResetState() {
+  const { dispatch } = useAppState();
+  return () => dispatch({ type: 'RESET_STATE' });
+}
+
+// Optional: Export a function to check if we can perform more optimizations
+export function useCanOptimize() {
+  const { state } = useAppState();
+  return state.optimizations.remaining > 0;
+}
+
+// Optional: Export a function to get the current token usage percentage
+export function useTokenUsage() {
+  const { state } = useAppState();
+  const maxTokens = 17500; // Our maximum token limit
+  return {
+    total: state.tokenUsage.total,
+    percentage: (state.tokenUsage.total / maxTokens) * 100,
+    remaining: maxTokens - state.tokenUsage.total
+  };
 }

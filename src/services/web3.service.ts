@@ -6,6 +6,7 @@ interface DeploymentResult {
   address: string;
   transactionHash: string;
   blockNumber: number;
+  abi: string; // Add this line
 }
 
 interface CompilationResult {
@@ -67,37 +68,38 @@ export class Web3Service {
     }
   }
 
-  public async deployContract(sourceCode: string): Promise<DeploymentResult> {
-    try {
-      console.log('Compiling contract...');
-      const { abi, bytecode } = await this.compileContract(sourceCode);
+public async deployContract(sourceCode: string): Promise<DeploymentResult> {
+  try {
+    console.log('Compiling contract...');
+    const { abi, bytecode } = await this.compileContract(sourceCode);
 
-      console.log('Creating contract factory...');
-      const factory = new ethers.ContractFactory(
-        abi,
-        bytecode,
-        this.deployerWallet
-      );
+    console.log('Creating contract factory...');
+    const factory = new ethers.ContractFactory(
+      abi,
+      bytecode,
+      this.deployerWallet
+    );
 
-      console.log('Deploying contract...');
-      const contract = await factory.deploy();
-      console.log('Waiting for deployment confirmation...');
-      const receipt = await contract.deployTransaction.wait();
+    console.log('Deploying contract...');
+    const contract = await factory.deploy();
+    console.log('Waiting for deployment confirmation...');
+    const receipt = await contract.deployTransaction.wait();
 
-      console.log('Contract deployed successfully:', contract.address);
-      return {
-        address: contract.address,
-        transactionHash: receipt.transactionHash,
-        blockNumber: receipt.blockNumber
-      };
-    } catch (error) {
-      console.error('Deployment failed:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Failed to deploy contract');
+    console.log('Contract deployed successfully:', contract.address);
+    return {
+      address: contract.address,
+      transactionHash: receipt.transactionHash,
+      blockNumber: receipt.blockNumber,
+      abi: JSON.stringify(abi)  // Convert the raw ABI array to string
+    };
+  } catch (error) {
+    console.error('Deployment failed:', error);
+    if (error instanceof Error) {
+      throw error;
     }
+    throw new Error('Failed to deploy contract');
   }
+}
 
   public async estimateGas(sourceCode: string): Promise<string> {
     try {
