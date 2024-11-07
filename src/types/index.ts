@@ -1,4 +1,5 @@
-// src/types/index.ts
+export * from '../../lib/types';
+
 export type FlowState = 'WELCOME' | 'DESCRIPTION' | 'GENERATING' | 'OPTIMIZATION' | 'DEPLOYMENT' | 'WALLET' | 'COMPLETE';
 
 export type Action =

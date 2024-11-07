@@ -1,7 +1,7 @@
 // src/context/auth.context.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { DiscordUser, UserData, TokenStatus } from '../types/auth.types';
-import { edgeConfigService } from '../../api/edge-config.service';
+import { UserData, TokenStatus } from '../types';
+import { edgeConfigService } from '../../lib/edge-config.service';
 
 interface AuthContextType {
   user: UserData | null;

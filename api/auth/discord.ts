@@ -1,5 +1,5 @@
-import { edgeConfigService } from '../edge-config.service';
-import type { DiscordUser, UserData } from '@/types/auth.types';
+import { edgeConfigService } from '../../lib/edge-config.service';
+import type { DiscordUser, UserData } from '../../lib/types';
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
   const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
