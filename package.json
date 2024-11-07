@@ -15,7 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "@shadcn/ui": "^0.0.4",
-    "@vercel/node": "^3.2.24",
+    "@vercel/edge-config": "^1.4.0",
+    "@vercel/kv": "^3.0.0",
     "ethers": "^5.7.2",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
@@ -27,6 +28,7 @@
     "@types/node": "^22.8.7",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vercel/node": "^3.2.24",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
