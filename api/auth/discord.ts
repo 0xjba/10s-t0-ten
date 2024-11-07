@@ -45,7 +45,7 @@ async function saveUser(userData: UserData): Promise<void> {
     const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
       method: 'PATCH',
       headers: {
-        'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
+        'Authorization': `Bearer ${process.env.VITE_ACCESS_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
