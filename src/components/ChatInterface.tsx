@@ -75,84 +75,120 @@ export const ChatInterface: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages]);
 
-  const handleDeployContract = async () => {
-    if (!state.contract || !walletAddress.trim()) return;
+// In ChatInterface.tsx, update the handleDeployContract function:
 
+const handleDeployContract = async () => {
+  if (!state.contract || !walletAddress.trim()) return;
+
+  // Validate wallet address format
+  if (!web3Service.validateAddress(walletAddress)) {
     dispatch({
-      type: 'SET_DEPLOYMENT_STATUS',
+      type: 'ADD_MESSAGE',
       payload: {
-        status: 'deploying',
-        address: null,
-        error: null,
-        txHash: null
+        id: Date.now().toString(),
+        type: 'error',
+        content: 'Please enter a valid wallet address starting with 0x'
+      }
+    });
+    return;
+  }
+
+  dispatch({
+    type: 'SET_DEPLOYMENT_STATUS',
+    payload: {
+      status: 'deploying',
+      address: null,
+      error: null,
+      txHash: null
+    }
+  });
+
+  try {
+    const deploymentResult = await web3Service.deployContract(state.contract);
+    
+    // Add deployment success message
+    dispatch({
+      type: 'ADD_MESSAGE',
+      payload: {
+        id: Date.now().toString(),
+        type: 'system',
+        content: `✅ Contract deployed successfully!\n\nContract Address: ${deploymentResult.address}\n\n🚀 To interact with this dApp on TEN Network:\n\n1. Visit TEN Gateway at https://testnet.ten.xyz\n2. Add TEN Network to your wallet\n3. Import your contract using the ABI below.`
       }
     });
 
+    // Add ABI to messages
+    if (deploymentResult.abi) {
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: Date.now().toString(),
+          type: 'contract',
+          content: deploymentResult.abi
+        }
+      });
+    }
+
+    // Update deployment status
+    dispatch({
+      type: 'SET_DEPLOYMENT_STATUS',
+      payload: {
+        status: 'deployed',
+        address: deploymentResult.address,
+        abi: deploymentResult.abi,
+        error: null,
+        txHash: deploymentResult.transactionHash
+      }
+    });
+
+    // Try to transfer ownership
     try {
-      const deploymentResult = await web3Service.deployContract(state.contract);
+      await web3Service.transferOwnership(deploymentResult.address, walletAddress);
       
-      // Add deployment success message
+      // Add transfer success message
       dispatch({
         type: 'ADD_MESSAGE',
         payload: {
           id: Date.now().toString(),
           type: 'system',
-          content: `✅ Contract deployed successfully!\n\nContract Address: ${deploymentResult.address}\n\n🚀 To interact with this dApp on TEN Network:\n\n1. Visit TEN Gateway at https://testnet.ten.xyz\n2. Add TEN Network to your wallet\n3. Import your contract using the ABI below.`
+          content: `✨ Contract ownership transferred to ${walletAddress}`
         }
       });
-
-      // Add ABI preview in chat
-      if (deploymentResult.abi) {
-        dispatch({
-          type: 'ADD_MESSAGE',
-          payload: {
-            id: Date.now().toString(),
-            type: 'contract',
-            content: JSON.stringify(JSON.parse(deploymentResult.abi), null, 2)
-          }
-        });
-      }
-
-      // Update deployment status
-      dispatch({
-        type: 'SET_DEPLOYMENT_STATUS',
-        payload: {
-          status: 'deployed',
-          address: deploymentResult.address,
-          abi: deploymentResult.abi,
-          error: null,
-          txHash: deploymentResult.transactionHash
-        }
-      });
-
-      // Try to transfer ownership
-      await web3Service.transferOwnership(deploymentResult.address, walletAddress);
-
-      dispatch({ type: 'SET_STATE', payload: 'COMPLETE' });
-
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      
+    } catch (transferError) {
       dispatch({
         type: 'ADD_MESSAGE',
         payload: {
           id: Date.now().toString(),
           type: 'error',
-          content: `Deployment failed: ${errorMessage}`
-        }
-      });
-
-      dispatch({
-        type: 'SET_DEPLOYMENT_STATUS',
-        payload: {
-          status: 'error',
-          address: null,
-          error: errorMessage,
-          txHash: null
+          content: `Warning: Contract deployed but ownership transfer failed. Please try transferring ownership manually.`
         }
       });
     }
-  };
+
+    dispatch({ type: 'SET_STATE', payload: 'COMPLETE' });
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    
+    dispatch({
+      type: 'ADD_MESSAGE',
+      payload: {
+        id: Date.now().toString(),
+        type: 'error',
+        content: `Deployment failed: ${errorMessage}`
+      }
+    });
+
+    dispatch({
+      type: 'SET_DEPLOYMENT_STATUS',
+      payload: {
+        status: 'error',
+        address: null,
+        error: errorMessage,
+        txHash: null
+      }
+    });
+  }
+};
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;

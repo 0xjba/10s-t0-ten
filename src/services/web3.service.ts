@@ -60,13 +60,19 @@ export class Web3Service {
     }
 }
 
-  public validateAddress(address: string): boolean {
-    try {
-      return ethers.utils.isAddress(address);
-    } catch {
+public validateAddress(address: string): boolean {
+  try {
+    // Ensure address is properly formatted
+    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
       return false;
     }
+    // Use ethers.js to validate the address
+    const checksumAddress = ethers.utils.getAddress(address);
+    return true;
+  } catch {
+    return false;
   }
+}
 
 public async deployContract(sourceCode: string): Promise<DeploymentResult> {
   try {
