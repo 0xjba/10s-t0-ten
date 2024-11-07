@@ -1,4 +1,4 @@
-import { edgeConfigService } from '@/services/edge-config.service';
+import { edgeConfigService } from '../edge-config.service';
 import type { DiscordUser, UserData } from '@/types/auth.types';
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
