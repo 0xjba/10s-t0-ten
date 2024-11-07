@@ -1,60 +1,60 @@
 // api/auth/discord.ts
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@vercel/edge-config';
 
 // Types
 interface DiscordUser {
-    id: string;
-    username: string;
-    avatar: string;
-  }
-  
-  interface UserData {
-    id: string;
-    username: string;
-    avatar: string;
-    tokenUsage: number;
-    lastTokenReset: number;
-  }
+  id: string;
+  username: string;
+  avatar: string;
+}
+
+interface UserData {
+  id: string;
+  username: string;
+  avatar: string;
+  tokenUsage: number;
+  lastTokenReset: number;
+}
 
 // Edge Config setup for API route
 const edgeConfig = createClient(process.env.VITE_EDGE_CONFIG_URL!);
 
 async function getUser(userId: string): Promise<UserData | null> {
-    try {
-      const userData = await edgeConfig.get<UserData>(`user:${userId}`);
-      return userData || null;
-    } catch (error) {
-      console.error('Error getting user:', error);
-      return null;
-    }
+  try {
+    const userData = await edgeConfig.get<UserData>(`user:${userId}`);
+    return userData || null;
+  } catch (error) {
+    console.error('Error getting user:', error);
+    return null;
   }
-  
-  async function saveUser(userData: UserData): Promise<void> {
-    try {
-      // Use Vercel API to update Edge Config
-      const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          items: [{
-            operation: 'upsert',
-            key: `user:${userData.id}`,
-            value: userData
-          }]
-        })
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to update Edge Config');
-      }
-    } catch (error) {
-      console.error('Error saving user:', error);
-      throw error;
+}
+
+async function saveUser(userData: UserData): Promise<void> {
+  try {
+    const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        items: [{
+          operation: 'upsert',
+          key: `user:${userData.id}`,
+          value: userData
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update Edge Config');
     }
+  } catch (error) {
+    console.error('Error saving user:', error);
+    throw error;
   }
+}
 
 async function getDiscordUser(code: string): Promise<DiscordUser> {
   const clientId = process.env.VITE_DISCORD_CLIENT_ID;
@@ -98,9 +98,16 @@ async function getDiscordUser(code: string): Promise<DiscordUser> {
   return userResponse.json();
 }
 
-export default async function handler(req: Request) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { code } = await req.json();
+    const { code } = req.body;
 
     // Get user info from Discord
     const discordUser = await getDiscordUser(code);
@@ -132,18 +139,9 @@ export default async function handler(req: Request) {
       }
     }
 
-    return new Response(JSON.stringify(userData), {
-      headers: { 'Content-Type': 'application/json' },
-      status: 200
-    });
+    return res.status(200).json(userData);
   } catch (error) {
     console.error('Discord auth error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Authentication failed' }), 
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    return res.status(500).json({ error: 'Authentication failed' });
   }
 }
