@@ -10,6 +10,7 @@ export interface DiscordUser {
     avatar: string;
     tokenUsage: number;
     lastTokenReset: number;
+    lastUpdated?: number;
   }
   
   export interface TokenStatus {

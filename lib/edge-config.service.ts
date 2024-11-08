@@ -1,13 +1,22 @@
 // lib/edge-config.service.ts
 import { createClient } from '@vercel/edge-config';
-import type { UserData, TokenStatus } from './types';
+import type { UserData, TokenStatus } from '../src/types';
 
 const MAX_TOKENS = 17500;
 
+// For server-side usage (API routes)
+export const createServerEdgeConfig = (configUrl: string) => {
+  const { createClient } = require('@vercel/edge-config');
+  return createClient(configUrl);
+};
+
 export class EdgeConfigService {
   private client;
+  private apiUrl: string;
 
   constructor() {
+    this.apiUrl = '/api/edge-config';
+    
     if (!import.meta.env.VITE_EDGE_CONFIG_URL) {
       console.error('Missing Edge Config URL');
       this.client = null;
@@ -24,8 +33,20 @@ export class EdgeConfigService {
         return storedData ? JSON.parse(storedData) : null;
       }
       
-      const userData = await this.client.get<UserData>(`user:${userId}`);
-      return userData || null;
+      const response = await fetch(`${this.apiUrl}?userId=${userId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const jsonResponse = await response.json();
+      
+      if (!jsonResponse || !jsonResponse.data) {
+        console.log('No user data found:', jsonResponse);
+        return null;
+      }
+
+      return jsonResponse.data;
     } catch (error) {
       console.error('Error getting user:', error);
       return null;
@@ -40,19 +61,20 @@ export class EdgeConfigService {
         return;
       }
 
-      const response = await fetch('/api/edge-config', {
-        method: 'PATCH',
+      const response = await fetch(this.apiUrl, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          key: `user:${userData.id}`,
-          value: userData
+          userId: userData.id,
+          data: userData
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save user data');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save user data');
       }
     } catch (error) {
       console.error('Error saving user:', error);
@@ -61,46 +83,86 @@ export class EdgeConfigService {
   }
 
   async checkTokens(userId: string, requiredTokens: number): Promise<TokenStatus> {
-    const user = await this.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
+    try {
+      const user = await this.getUser(userId);
+      
+      if (!user) {
+        return {
+          canUse: true,
+          remainingTokens: MAX_TOKENS,
+          nextResetTime: Date.now()
+        };
+      }
+
+      const now = Date.now();
+      const hoursSinceReset = (now - (user.lastTokenReset || now)) / (1000 * 60 * 60);
+
+      if (hoursSinceReset >= 24) {
+        user.tokenUsage = 0;
+        user.lastTokenReset = now;
+        await this.saveUser(user);
+        
+        return {
+          canUse: true,
+          remainingTokens: MAX_TOKENS,
+          nextResetTime: now
+        };
+      }
+
+      const remainingTokens = MAX_TOKENS - (user.tokenUsage || 0);
+      return {
+        canUse: remainingTokens >= requiredTokens,
+        remainingTokens,
+        nextResetTime: (user.lastTokenReset || now) + (24 * 60 * 60 * 1000)
+      };
+    } catch (error) {
+      console.error('Error checking tokens:', error);
+      throw error;
     }
-
-    const now = Date.now();
-    const hoursSinceReset = (now - user.lastTokenReset) / (1000 * 60 * 60);
-
-    if (hoursSinceReset >= 24) {
-      user.tokenUsage = 0;
-      user.lastTokenReset = now;
-      await this.saveUser(user);
-    }
-
-    const remainingTokens = MAX_TOKENS - user.tokenUsage;
-
-    return {
-      canUse: remainingTokens >= requiredTokens,
-      remainingTokens,
-      nextResetTime: user.lastTokenReset + (24 * 60 * 60 * 1000)
-    };
   }
 
   async updateTokenUsage(userId: string, tokensUsed: number): Promise<void> {
-    const user = await this.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
+    try {
+      const user = await this.getUser(userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const now = Date.now();
+      const hoursSinceReset = (now - user.lastTokenReset) / (1000 * 60 * 60);
+
+      if (hoursSinceReset >= 24) {
+        user.tokenUsage = tokensUsed;
+        user.lastTokenReset = now;
+      } else {
+        user.tokenUsage += tokensUsed;
+      }
+
+      await this.saveUser(user);
+      
+      if (!this.client) {
+        return; // For development mode
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId,
+          tokenUsage: tokensUsed
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update token usage');
+      }
+    } catch (error) {
+      console.error('Error updating token usage:', error);
+      throw error;
     }
-
-    const now = Date.now();
-    const hoursSinceReset = (now - user.lastTokenReset) / (1000 * 60 * 60);
-
-    if (hoursSinceReset >= 24) {
-      user.tokenUsage = tokensUsed;
-      user.lastTokenReset = now;
-    } else {
-      user.tokenUsage += tokensUsed;
-    }
-
-    await this.saveUser(user);
   }
 
   getTimeUntilReset(lastResetTime: number): string {

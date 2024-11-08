@@ -1,15 +1,7 @@
 // api/edge-config.ts
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@vercel/edge-config';
-
-interface UserData {
-  id: string;
-  username: string;
-  avatar: string;
-  tokenUsage: number;
-  lastTokenReset: number;
-  lastUpdated?: number;
-}
+import { createClient, EdgeConfigClient } from '@vercel/edge-config';
+import type { UserData } from '../src/types';
 
 const edgeConfig = createClient(process.env.VITE_EDGE_CONFIG_URL!);
 
@@ -39,8 +31,9 @@ export default async function handler(
           return res.status(400).json({ error: 'userId is required' });
         }
 
-        const userData = await edgeConfig.get<UserData | null>(`user:${userId}`);
-        return res.status(200).json(userData);
+        // Using type assertion for the get method
+        const userData = await (edgeConfig.get(`user:${userId}`) as Promise<UserData | null>);
+        return res.status(200).json({ data: userData || null });
       }
 
       case 'PUT': {
@@ -49,21 +42,25 @@ export default async function handler(
           return res.status(400).json({ error: 'Invalid request body' });
         }
 
-        // Update edge config
         const key = `user:${userId}`;
-        const currentData = await edgeConfig.get<UserData | null>(key);
+        // Using type assertion for the get method
+        const currentData = await (edgeConfig.get(key) as Promise<UserData | null>);
         
-        if (!currentData) {
-          return res.status(404).json({ error: 'User not found' });
-        }
-
-        const updatedData: UserData = {
+        const updatedData: UserData = currentData ? {
           ...currentData,
           tokenUsage: currentData.tokenUsage + tokenUsage,
           lastUpdated: Date.now()
+        } : {
+          id: userId,
+          username: '',
+          avatar: '',
+          tokenUsage: tokenUsage,
+          lastTokenReset: Date.now(),
+          lastUpdated: Date.now()
         };
 
-        await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
+        // Update edge config
+        const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${process.env.VITE_EDGE_CONFIG_TOKEN}`,
@@ -78,7 +75,13 @@ export default async function handler(
           })
         });
 
-        return res.status(200).json(updatedData);
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Edge Config update failed:', errorData);
+          return res.status(500).json({ error: 'Failed to update Edge Config' });
+        }
+
+        return res.status(200).json({ data: updatedData });
       }
 
       default:
@@ -86,6 +89,9 @@ export default async function handler(
     }
   } catch (error) {
     console.error('Edge Config operation failed:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 }
