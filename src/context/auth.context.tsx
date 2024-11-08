@@ -1,7 +1,7 @@
 // src/context/auth.context.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserData, TokenStatus } from '../types';
-import { edgeConfigService } from '../../lib/edge-config.service';
+import { edgeConfigService } from '../services/edge-config.service';
 
 interface AuthContextType {
   user: UserData | null;
@@ -46,16 +46,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) throw new Error('Not authenticated');
     
     try {
+      // Update Edge Config through our API
+      await edgeConfigService.updateTokenUsage(user.id, tokensUsed);
+      
       // Update local user state
       const updatedUser = {
         ...user,
-        tokenUsage: user.tokenUsage + tokensUsed
+        tokenUsage: user.tokenUsage + tokensUsed,
+        lastUpdated: Date.now()
       };
       setUser(updatedUser);
       localStorage.setItem('discord_user', JSON.stringify(updatedUser));
-      
-      // Update Edge Config
-      await edgeConfigService.updateTokenUsage(user.id, tokensUsed);
     } catch (error) {
       console.error('Failed to update token usage:', error);
       throw error;
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const timestamp = localStorage.getItem('auth_timestamp');
       const now = Date.now();
       if (timestamp && now - parseInt(timestamp) < 24 * 60 * 60 * 1000) {
-        // Get latest token usage from Edge Config
+        // Get latest token usage from Edge Config API
         const latestData = await edgeConfigService.getUser(savedUser.id);
         if (latestData) {
           // Update local storage with latest data
