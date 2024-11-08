@@ -19,6 +19,13 @@ export class EdgeConfigService {
     }
   }
 
+  // Helper function to generate valid Edge Config key
+  private generateEdgeConfigKey(userId: string): string {
+    // Prefix and replace any invalid characters in the Discord user ID with underscores
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `discord_user_${sanitizedUserId}`;
+  }
+
   async getUser(userId: string): Promise<UserData | null> {
     try {
       if (!this.client) {
@@ -27,14 +34,15 @@ export class EdgeConfigService {
         return storedData ? JSON.parse(storedData) : null;
       }
       
-      const response = await fetch(`${this.apiUrl}?userId=${userId}`);
+      const key = this.generateEdgeConfigKey(userId);
+      const response = await fetch(`${this.apiUrl}?userId=${encodeURIComponent(key)}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const jsonResponse = await response.json();
-      return jsonResponse.data; // This might be null for new users, and that's OK
+      return jsonResponse.data;
     } catch (error) {
       console.error('Error getting user:', error);
       return null;
@@ -49,13 +57,14 @@ export class EdgeConfigService {
         return;
       }
 
+      const key = this.generateEdgeConfigKey(userData.id);
       const response = await fetch(this.apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          userId: userData.id,
+          userId: key,
           tokenUsage: userData.tokenUsage || 0,
           userData: userData
         })
@@ -63,6 +72,7 @@ export class EdgeConfigService {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Save user error response:', errorData);
         throw new Error(errorData.error || 'Failed to save user data');
       }
     } catch (error) {
@@ -83,6 +93,38 @@ export class EdgeConfigService {
 
     await this.saveUser(newUser);
     return newUser;
+  }
+
+  async updateTokenUsage(userId: string, tokensUsed: number): Promise<void> {
+    try {
+      let user = await this.getUser(userId);
+      
+      if (!user) {
+        user = {
+          id: userId,
+          username: '',
+          avatar: '',
+          tokenUsage: 0,
+          lastTokenReset: Date.now(),
+          lastUpdated: Date.now()
+        };
+      }
+
+      const now = Date.now();
+      const hoursSinceReset = (now - user.lastTokenReset) / (1000 * 60 * 60);
+
+      if (hoursSinceReset >= 24) {
+        user.tokenUsage = tokensUsed;
+        user.lastTokenReset = now;
+      } else {
+        user.tokenUsage += tokensUsed;
+      }
+
+      await this.saveUser(user);
+    } catch (error) {
+      console.error('Error updating token usage:', error);
+      throw error;
+    }
   }
 
   async checkTokens(userId: string, requiredTokens: number): Promise<TokenStatus> {
@@ -120,39 +162,6 @@ export class EdgeConfigService {
       };
     } catch (error) {
       console.error('Error checking tokens:', error);
-      throw error;
-    }
-  }
-
-  async updateTokenUsage(userId: string, tokensUsed: number): Promise<void> {
-    try {
-      let user = await this.getUser(userId);
-      
-      // Initialize new user if not found
-      if (!user) {
-        user = {
-          id: userId,
-          username: '', // Will be updated with Discord data
-          avatar: '',  // Will be updated with Discord data
-          tokenUsage: 0,
-          lastTokenReset: Date.now(),
-          lastUpdated: Date.now()
-        };
-      }
-
-      const now = Date.now();
-      const hoursSinceReset = (now - user.lastTokenReset) / (1000 * 60 * 60);
-
-      if (hoursSinceReset >= 24) {
-        user.tokenUsage = tokensUsed;
-        user.lastTokenReset = now;
-      } else {
-        user.tokenUsage += tokensUsed;
-      }
-
-      await this.saveUser(user);
-    } catch (error) {
-      console.error('Error updating token usage:', error);
       throw error;
     }
   }

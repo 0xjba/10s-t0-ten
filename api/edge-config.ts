@@ -5,6 +5,12 @@ import type { UserData } from '../src/types';
 
 const edgeConfig = createClient(process.env.VITE_EDGE_CONFIG_URL!);
 
+// Helper function to generate valid Edge Config key
+function generateEdgeConfigKey(userId: string): string {
+  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `discord_user_${sanitizedUserId}`;
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -31,35 +37,26 @@ export default async function handler(
           return res.status(400).json({ error: 'userId is required' });
         }
 
-        // Using type assertion for the get method
-        const userData = await (edgeConfig.get(`user:${userId}`) as Promise<UserData | null>);
+        const key = generateEdgeConfigKey(decodeURIComponent(userId));
+        const userData = await edgeConfig.get<UserData | null>(key);
         return res.status(200).json({ data: userData || null });
       }
 
       case 'PUT': {
-        const { userId, tokenUsage } = req.body;
-        if (!userId || typeof tokenUsage !== 'number') {
+        const { userId, tokenUsage, userData } = req.body;
+        if (!userId) {
           return res.status(400).json({ error: 'Invalid request body' });
         }
 
-        const key = `user:${userId}`;
-        // Using type assertion for the get method
-        const currentData = await (edgeConfig.get(key) as Promise<UserData | null>);
+        const key = generateEdgeConfigKey(userId);
+        const currentData = await edgeConfig.get<UserData | null>(key);
         
         const updatedData: UserData = currentData ? {
           ...currentData,
-          tokenUsage: currentData.tokenUsage + tokenUsage,
+          tokenUsage: tokenUsage !== undefined ? tokenUsage : currentData.tokenUsage,
           lastUpdated: Date.now()
-        } : {
-          id: userId,
-          username: '',
-          avatar: '',
-          tokenUsage: tokenUsage,
-          lastTokenReset: Date.now(),
-          lastUpdated: Date.now()
-        };
+        } : userData;
 
-        // Update edge config
         const response = await fetch(`https://api.vercel.com/v1/edge-config/${process.env.VITE_EDGE_CONFIG_ID}/items`, {
           method: 'PATCH',
           headers: {
