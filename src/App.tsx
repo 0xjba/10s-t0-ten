@@ -4,9 +4,10 @@ import { ChatInterface } from './components/ChatInterface';
 import { TokenCounter } from './components/ui/TokenCounter';
 import { LoginPage } from './components/LoginPage';
 import { useAuth } from './context/auth.context';
+import { Button } from './components/ui/Button';
 
 const App = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -25,12 +26,14 @@ const App = () => {
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex justify-between items-center px-4">
           <TokenCounter />
-          <button
-            onClick={() => useAuth().logout()}
-            className="text-sm text-gray-600 hover:text-gray-800"
+          <Button
+            onClick={logout}
+            variant="outline"
+            size="sm"
+            className="text-gray-600 hover:text-gray-800"
           >
             Logout
-          </button>
+          </Button>
         </div>
         <div className="bg-white rounded-lg shadow-lg border border-gray-200">
           <ChatInterface />
