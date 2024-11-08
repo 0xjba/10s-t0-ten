@@ -24,12 +24,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ? 'http://localhost:3000'
       : import.meta.env.VITE_APP_URL;
   
+    // Store the current URL to redirect back after login
+    sessionStorage.setItem('returnUrl', window.location.href);
+    
     window.location.href = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify`;
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('discord_user');
+    localStorage.removeItem('auth_timestamp');
+    sessionStorage.removeItem('returnUrl');
   };
 
   const checkTokens = async (requiredTokens: number): Promise<TokenStatus> => {
@@ -39,7 +44,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateTokenUsage = async (tokensUsed: number): Promise<void> => {
     if (!user) throw new Error('Not authenticated');
-    await edgeConfigService.updateTokenUsage(user.id, tokensUsed);
+    
+    try {
+      // Update local user state
+      const updatedUser = {
+        ...user,
+        tokenUsage: user.tokenUsage + tokensUsed
+      };
+      setUser(updatedUser);
+      localStorage.setItem('discord_user', JSON.stringify(updatedUser));
+      
+      // Update Edge Config
+      await edgeConfigService.updateTokenUsage(user.id, tokensUsed);
+    } catch (error) {
+      console.error('Failed to update token usage:', error);
+      throw error;
+    }
+  };
+
+  const validateAndRefreshSession = async (savedUser: UserData): Promise<UserData | null> => {
+    try {
+      // Check if the session is still valid (24 hours)
+      const timestamp = localStorage.getItem('auth_timestamp');
+      const now = Date.now();
+      if (timestamp && now - parseInt(timestamp) < 24 * 60 * 60 * 1000) {
+        // Get latest token usage from Edge Config
+        const latestData = await edgeConfigService.getUser(savedUser.id);
+        if (latestData) {
+          // Update local storage with latest data
+          localStorage.setItem('discord_user', JSON.stringify(latestData));
+          return latestData;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Session validation failed:', error);
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -47,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const code = new URLSearchParams(window.location.search).get('code');
         if (code) {
-          // Add origin to ensure correct redirect URI is used
+          // Handle Discord OAuth callback
           const response = await fetch('/api/auth/discord', {
             method: 'POST',
             headers: { 
@@ -64,17 +105,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userData = await response.json();
           setUser(userData);
           localStorage.setItem('discord_user', JSON.stringify(userData));
+          localStorage.setItem('auth_timestamp', Date.now().toString());
 
-          // Clean URL
-          window.history.replaceState({}, document.title, window.location.pathname);
+          // Redirect back to the original URL if available
+          const returnUrl = sessionStorage.getItem('returnUrl');
+          if (returnUrl) {
+            sessionStorage.removeItem('returnUrl');
+            window.location.href = returnUrl;
+          } else {
+            // Clean URL if no return URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
         } else {
           // Check for existing session
-          const savedUser = localStorage.getItem('discord_user');
-          if (savedUser) {
-            const userData = JSON.parse(savedUser);
-            const latestData = await edgeConfigService.getUser(userData.id);
-            if (latestData) {
-              setUser(latestData);
+          const savedUserData = localStorage.getItem('discord_user');
+          if (savedUserData) {
+            const savedUser = JSON.parse(savedUserData);
+            const validatedUser = await validateAndRefreshSession(savedUser);
+            if (validatedUser) {
+              setUser(validatedUser);
+            } else {
+              // Session expired or invalid, clear storage
+              handleLogout();
             }
           }
         }
