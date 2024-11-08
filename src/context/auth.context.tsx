@@ -85,59 +85,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const code = new URLSearchParams(window.location.search).get('code');
-        if (code) {
-          // Handle Discord OAuth callback
-          const response = await fetch('/api/auth/discord', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Origin': window.location.origin
-            },
-            body: JSON.stringify({ code })
-          });
+// src/context/auth.context.tsx - update the initAuth function in useEffect
 
-          if (!response.ok) {
-            throw new Error('Auth failed');
-          }
-
-          const userData = await response.json();
-          setUser(userData);
-          localStorage.setItem('discord_user', JSON.stringify(userData));
-          localStorage.setItem('auth_timestamp', Date.now().toString());
-
-          // Redirect back to the original URL if available
-          const returnUrl = sessionStorage.getItem('returnUrl');
-          if (returnUrl) {
-            sessionStorage.removeItem('returnUrl');
-            window.location.href = returnUrl;
-          } else {
-            // Clean URL if no return URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
+const initAuth = async () => {
+    try {
+      const code = new URLSearchParams(window.location.search).get('code');
+      if (code) {
+        // Handle Discord OAuth callback
+        const response = await fetch('/api/auth/discord', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': window.location.origin
+          },
+          body: JSON.stringify({ code })
+        });
+  
+        if (!response.ok) {
+          throw new Error('Auth failed');
+        }
+  
+        const discordData = await response.json();
+        
+        // Get or initialize user data
+        let userData = await edgeConfigService.getUser(discordData.id);
+        
+        if (!userData) {
+          // Initialize new user if not found
+          userData = await edgeConfigService.initializeNewUser(discordData);
+        }
+  
+        setUser(userData);
+        localStorage.setItem('discord_user', JSON.stringify(userData));
+        localStorage.setItem('auth_timestamp', Date.now().toString());
+  
+        // Redirect back to the original URL if available
+        const returnUrl = sessionStorage.getItem('returnUrl');
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl');
+          window.location.href = returnUrl;
         } else {
-          // Check for existing session
-          const savedUserData = localStorage.getItem('discord_user');
-          if (savedUserData) {
-            const savedUser = JSON.parse(savedUserData);
-            const validatedUser = await validateAndRefreshSession(savedUser);
-            if (validatedUser) {
-              setUser(validatedUser);
-            } else {
-              // Session expired or invalid, clear storage
-              handleLogout();
-            }
+          // Clean URL if no return URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } else {
+        // Check for existing session
+        const savedUserData = localStorage.getItem('discord_user');
+        if (savedUserData) {
+          const savedUser = JSON.parse(savedUserData);
+          const validatedUser = await validateAndRefreshSession(savedUser);
+          if (validatedUser) {
+            setUser(validatedUser);
+          } else {
+            // Session expired or invalid, clear storage
+            handleLogout();
           }
         }
-      } catch (error) {
-        console.error('Auth error:', error);
-        handleLogout();
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Auth error:', error);
+      handleLogout();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
     initAuth();
   }, []);

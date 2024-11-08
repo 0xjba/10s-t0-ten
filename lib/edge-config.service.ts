@@ -4,12 +4,6 @@ import type { UserData, TokenStatus } from '../src/types';
 
 const MAX_TOKENS = 17500;
 
-// For server-side usage (API routes)
-export const createServerEdgeConfig = (configUrl: string) => {
-  const { createClient } = require('@vercel/edge-config');
-  return createClient(configUrl);
-};
-
 export class EdgeConfigService {
   private client;
   private apiUrl: string;
@@ -40,13 +34,7 @@ export class EdgeConfigService {
       }
       
       const jsonResponse = await response.json();
-      
-      if (!jsonResponse || !jsonResponse.data) {
-        console.log('No user data found:', jsonResponse);
-        return null;
-      }
-
-      return jsonResponse.data;
+      return jsonResponse.data; // This might be null for new users, and that's OK
     } catch (error) {
       console.error('Error getting user:', error);
       return null;
@@ -68,7 +56,8 @@ export class EdgeConfigService {
         },
         body: JSON.stringify({
           userId: userData.id,
-          data: userData
+          tokenUsage: userData.tokenUsage || 0,
+          userData: userData
         })
       });
 
@@ -80,6 +69,20 @@ export class EdgeConfigService {
       console.error('Error saving user:', error);
       throw error;
     }
+  }
+
+  async initializeNewUser(discordUserData: { id: string; username: string; avatar: string }): Promise<UserData> {
+    const newUser: UserData = {
+      id: discordUserData.id,
+      username: discordUserData.username,
+      avatar: discordUserData.avatar,
+      tokenUsage: 0,
+      lastTokenReset: Date.now(),
+      lastUpdated: Date.now()
+    };
+
+    await this.saveUser(newUser);
+    return newUser;
   }
 
   async checkTokens(userId: string, requiredTokens: number): Promise<TokenStatus> {
@@ -123,9 +126,18 @@ export class EdgeConfigService {
 
   async updateTokenUsage(userId: string, tokensUsed: number): Promise<void> {
     try {
-      const user = await this.getUser(userId);
+      let user = await this.getUser(userId);
+      
+      // Initialize new user if not found
       if (!user) {
-        throw new Error('User not found');
+        user = {
+          id: userId,
+          username: '', // Will be updated with Discord data
+          avatar: '',  // Will be updated with Discord data
+          tokenUsage: 0,
+          lastTokenReset: Date.now(),
+          lastUpdated: Date.now()
+        };
       }
 
       const now = Date.now();
@@ -139,26 +151,6 @@ export class EdgeConfigService {
       }
 
       await this.saveUser(user);
-      
-      if (!this.client) {
-        return; // For development mode
-      }
-
-      const response = await fetch(this.apiUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId,
-          tokenUsage: tokensUsed
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update token usage');
-      }
     } catch (error) {
       console.error('Error updating token usage:', error);
       throw error;
